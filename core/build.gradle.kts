@@ -19,6 +19,8 @@ android {
             buildConfigField("String", "VERSION_NAME", "\"${defaultConfig.versionName}\"")
         }
     }
+    compileSdk = 33
+    buildToolsVersion = "30.0.3"
 }
 
 dependencies {

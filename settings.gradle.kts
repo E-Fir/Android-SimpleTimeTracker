@@ -1,4 +1,4 @@
-rootProject.name = "Simple Time Tracker"
+rootProject.name = "Simple Time Tracker MyFork"
 include(
     "app",
     "domain",

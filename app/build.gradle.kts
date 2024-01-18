@@ -13,7 +13,7 @@ applyAndroidLibrary()
 
 android {
     defaultConfig {
-        applicationId = "com.razeeman.util.simpletimetracker"
+        applicationId = "com.efir.util.simpletimetracker"
         versionCode = Base.versionCode
         versionName = Base.versionName
 
@@ -54,6 +54,8 @@ android {
         // Adds exported schema location as test app assets.
         getByName("androidTest").assets.srcDir("$projectDir/../data_local/schemas")
     }
+    compileSdk = 33
+    buildToolsVersion = "30.0.3"
 }
 
 dependencies {
