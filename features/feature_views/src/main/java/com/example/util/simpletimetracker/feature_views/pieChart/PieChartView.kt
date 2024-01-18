@@ -227,7 +227,7 @@ class PieChartView @JvmOverloads constructor(
         val segmentCenterLine = r - segmentWidth / 2f
         var currentSweepAngle = -90f
         var sweepAngle: Float
-        segmentPaint.strokeWidth = segmentWidth
+        segmentPaint.strokeWidth = 3f
 
         canvas.save()
         canvas.translate(w / 2f, h / 2f)
@@ -410,7 +410,8 @@ class PieChartView @JvmOverloads constructor(
                     PiePortion(
                         value = it.toLong(),
                         colorInt = Color.BLACK,
-                        iconId = RecordTypeIcon.Image(R.drawable.unknown)
+                        iconId = RecordTypeIcon.Image(R.drawable.unknown),
+                        name = "",
                     )
                 }.let {
                     setSegments(

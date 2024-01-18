@@ -22,6 +22,7 @@ import com.example.util.simpletimetracker.domain.interactor.PrefsInteractor
 import com.example.util.simpletimetracker.domain.interactor.RecordTypeInteractor
 import com.example.util.simpletimetracker.domain.model.ChartFilterType
 import com.example.util.simpletimetracker.domain.model.RecordType
+import com.example.util.simpletimetracker.domain.repo.CategoryRepo
 import com.example.util.simpletimetracker.feature_views.IconView
 import com.example.util.simpletimetracker.feature_views.extension.dpToPx
 import com.example.util.simpletimetracker.feature_views.extension.getBitmapFromView
@@ -57,6 +58,9 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
 
     @Inject
     lateinit var resourceRepo: ResourceRepo
+
+    @Inject
+    lateinit var categoryRepo: CategoryRepo;
 
     @Inject
     lateinit var timeMapper: TimeMapper
@@ -150,7 +154,7 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             filteredIds = filteredIds,
             range = range,
         )
-        val chart = statisticsChartViewDataInteractor.getChart(
+        var chart = statisticsChartViewDataInteractor.getChart(
             filterType = filterType,
             filteredIds = filteredIds,
             statistics = statistics,
@@ -158,14 +162,63 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             types = types,
             isDarkTheme = isDarkTheme,
         )
-        val total: String = statisticsMediator.getStatisticsTotalTracked(
-            statistics = statistics,
-            filteredIds = filteredIds,
+
+        for (i in chart.indices) {
+            val el = chart.elementAt(i)
+            el.koef = try {
+                (el.name?.substringAfterLast(" ")?.toFloat() ?: 1.0).toFloat()
+            } catch (e: Exception) {
+                1.toFloat()
+            }
+            el.value = (el.value.toFloat() * el.koef).toLong()
+        }
+
+        var totalTracked = ""
+        var sum = 0F
+        var cnt = 0
+        var minIndex = -1
+        var minValue = 10000000000000
+        for (i in chart.indices) {
+            val el = chart.elementAt(i)
+            sum += el.value
+            cnt++
+            if (el.value < minValue) {
+                minValue = el.value
+                minIndex = i
+            }
+        }
+
+        var el = chart.elementAt(minIndex)
+        var expectedPercent = 100 / cnt.toFloat()
+        var percent = el.value / sum * 100
+        var percentDiff = expectedPercent - percent
+        percentDiff = Math.round(percentDiff * 1000F) / 1000F
+        var timeStr: String = timeMapper.formatInterval(
+            interval = (sum * percentDiff / 100).toLong() * cnt,
+            forceSeconds = showSeconds,
             useProportionalMinutes = useProportionalMinutes,
-            showSeconds = showSeconds,
         )
-        val totalTracked = resourceRepo.getString(R.string.statistics_total_tracked_short) +
-            "\n" + total
+        totalTracked += "Need ${el.name}:\n$percentDiff%\n$timeStr\n\n"
+
+        for (i in chart.indices) {
+            el = chart.elementAt(i)
+            percent = el.value / sum * 100
+            percent = Math.round(percent * 1000F) / 1000F
+            timeStr = timeMapper.formatInterval(
+                interval = (el.value.toFloat() / el.koef).toLong(),
+                forceSeconds = showSeconds,
+                useProportionalMinutes = useProportionalMinutes,
+            )
+            if (el.koef != 1F) {
+                timeStr += " (" + timeMapper.formatInterval(
+                    interval = el.value,
+                    forceSeconds = showSeconds,
+                    useProportionalMinutes = useProportionalMinutes,
+                ) + ")"
+            }
+
+            totalTracked += "${el.name}:\n$timeStr\n$percent%\n\n"
+        }
 
         return WidgetStatisticsChartView(ContextThemeWrapper(context, R.style.AppTheme)).apply {
             setSegments(
@@ -195,8 +248,10 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         options: Bundle,
         view: View,
     ) {
-        val defaultWidth = context.resources.getDimensionPixelSize(R.dimen.record_type_card_width).pxToDp()
-        val defaultHeight = context.resources.getDimensionPixelSize(R.dimen.record_type_card_height).pxToDp()
+        val defaultWidth =
+            context.resources.getDimensionPixelSize(R.dimen.record_type_card_width).pxToDp()
+        val defaultHeight =
+            context.resources.getDimensionPixelSize(R.dimen.record_type_card_height).pxToDp()
 
         var width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, defaultWidth)
             .dpToPx().takeUnless { it == 0 } ?: defaultWidth

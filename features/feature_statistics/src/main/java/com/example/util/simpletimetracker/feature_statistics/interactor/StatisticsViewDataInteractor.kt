@@ -137,6 +137,7 @@ class StatisticsViewDataInteractor @Inject constructor(
                 ?: PiePortion(
                     value = 0,
                     colorInt = colorMapper.toUntrackedColor(isDarkTheme),
+                    name = ""
                 ).let(::listOf)
 
             StatisticsChartViewData(

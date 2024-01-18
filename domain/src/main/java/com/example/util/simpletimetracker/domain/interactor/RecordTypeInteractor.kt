@@ -18,7 +18,7 @@ class RecordTypeInteractor @Inject constructor(
     private val recordTypeRepo: RecordTypeRepo,
     private val recordRepo: RecordRepo,
     private val recordToRecordTagRepo: RecordToRecordTagRepo,
-    private val recordTypeCategoryRepo: RecordTypeCategoryRepo,
+    val recordTypeCategoryRepo: RecordTypeCategoryRepo,
     private val recordTagRepo: RecordTagRepo,
     private val recordTypeGoalRepo: RecordTypeGoalRepo,
     private val prefsInteractor: PrefsInteractor,

@@ -70,7 +70,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                 ) ?: return@mapNotNull null
                 chart to statistic.data.duration
             }
-            .sortedByDescending { (_, duration) -> duration }
+//            .sortedByDescending { (_, duration) -> duration }
             .map { (statistics, _) -> statistics }
     }
 
@@ -85,6 +85,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                     value = statistics.data.duration,
                     colorInt = colorMapper.toUntrackedColor(isDarkTheme),
                     iconId = RecordTypeIcon.Image(R.drawable.unknown),
+                    name = dataHolder?.name ?: "noname",
                 )
             }
             statistics.id == UNCATEGORIZED_ITEM_ID -> {
@@ -92,6 +93,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                     value = statistics.data.duration,
                     colorInt = colorMapper.toUntrackedColor(isDarkTheme),
                     iconId = RecordTypeIcon.Image(R.drawable.untagged),
+                    name = dataHolder?.name ?: "noname",
                 )
             }
             dataHolder != null -> {
@@ -101,6 +103,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                         .let { colorMapper.mapToColorInt(it, isDarkTheme) },
                     iconId = dataHolder.icon
                         ?.let(iconMapper::mapIcon),
+                    name = dataHolder?.name ?: "noname",
                 )
             }
             else -> {
