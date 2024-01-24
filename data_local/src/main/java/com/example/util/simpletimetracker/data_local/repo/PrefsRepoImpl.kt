@@ -292,6 +292,7 @@ class PrefsRepoImpl @Inject constructor(
             .putStringSet(KEY_STATISTICS_WIDGET_FILTERED_TYPES + widgetId, filteredTypesData)
             .putStringSet(KEY_STATISTICS_WIDGET_FILTERED_CATEGORIES + widgetId, filteredCategoriesData)
             .putStringSet(KEY_STATISTICS_WIDGET_FILTERED_TAGS + widgetId, filteredTagsData)
+            .putString(KEY_STATISTICS_WIDGET_OPTIONS + widgetId, data.options)
             .apply()
     }
 
@@ -321,6 +322,8 @@ class PrefsRepoImpl @Inject constructor(
         val filteredTags = prefs
             .getStringSet(KEY_STATISTICS_WIDGET_FILTERED_TAGS + widgetId, emptySet())
             ?.mapNotNull { it.toLongOrNull() }.orEmpty().toSet()
+        val options = prefs
+            .getString(KEY_STATISTICS_WIDGET_OPTIONS + widgetId, "").toString()
 
         return StatisticsWidgetData(
             chartFilterType = filterType,
@@ -328,6 +331,7 @@ class PrefsRepoImpl @Inject constructor(
             filteredTypes = filteredTypes,
             filteredCategories = filteredCategories,
             filteredTags = filteredTags,
+            options = options,
         )
     }
 
@@ -339,6 +343,7 @@ class PrefsRepoImpl @Inject constructor(
             .remove(KEY_STATISTICS_WIDGET_FILTERED_TYPES + widgetId)
             .remove(KEY_STATISTICS_WIDGET_FILTERED_CATEGORIES + widgetId)
             .remove(KEY_STATISTICS_WIDGET_FILTERED_TAGS + widgetId)
+            .remove(KEY_STATISTICS_WIDGET_OPTIONS + widgetId)
             .apply()
     }
 
@@ -468,6 +473,7 @@ class PrefsRepoImpl @Inject constructor(
         private const val KEY_STATISTICS_WIDGET_FILTERED_TAGS = "statistics_widget_filtered_tags_"
         private const val KEY_STATISTICS_WIDGET_FILTER_TYPE = "statistics_widget_filter_type_"
         private const val KEY_STATISTICS_WIDGET_RANGE = "statistics_widget_range_"
+        private const val KEY_STATISTICS_WIDGET_OPTIONS = "statistics_widget_options_"
         private const val KEY_QUICK_SETTINGS_WIDGET_TYPE = "quick_settings_widget_type_"
         private const val KEY_CARD_ORDER_MANUAL = "cardOrderManual"
 

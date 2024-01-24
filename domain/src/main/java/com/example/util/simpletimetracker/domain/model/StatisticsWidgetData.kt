@@ -6,4 +6,5 @@ data class StatisticsWidgetData(
     val filteredTypes: Set<Long>,
     val filteredCategories: Set<Long>,
     val filteredTags: Set<Long>,
+    var options: String = "",
 )

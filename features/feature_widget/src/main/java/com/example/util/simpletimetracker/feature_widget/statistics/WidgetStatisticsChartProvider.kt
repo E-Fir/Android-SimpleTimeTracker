@@ -21,7 +21,9 @@ import com.example.util.simpletimetracker.core.utils.SHORTCUT_NAVIGATION_STATIST
 import com.example.util.simpletimetracker.domain.interactor.PrefsInteractor
 import com.example.util.simpletimetracker.domain.interactor.RecordTypeInteractor
 import com.example.util.simpletimetracker.domain.model.ChartFilterType
+import com.example.util.simpletimetracker.domain.model.RangeLength
 import com.example.util.simpletimetracker.domain.model.RecordType
+import com.example.util.simpletimetracker.domain.model.Statistics
 import com.example.util.simpletimetracker.domain.repo.CategoryRepo
 import com.example.util.simpletimetracker.feature_views.IconView
 import com.example.util.simpletimetracker.feature_views.extension.dpToPx
@@ -37,7 +39,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.roundToLong
 
 @AndroidEntryPoint
 class WidgetStatisticsChartProvider : AppWidgetProvider() {
@@ -119,6 +123,23 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         }
     }
 
+    private fun parseOptionsString(input: String): Map<String, Any> {
+        val opts = mutableMapOf<String, Any>()
+
+        val keyValuePairs = input.split(Regex("[\\s\\n\\r]+")).filter { it.isNotBlank() }
+
+        for (pair in keyValuePairs) {
+            val parts = pair.split("=")
+            if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                opts[parts[0]] = parts[1].toDouble()
+            } else {
+                opts[parts[0]] = 0.0
+            }
+        }
+
+        return opts
+    }
+
     private suspend fun prepareView(
         context: Context,
         appWidgetId: Int,
@@ -140,10 +161,13 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         }.toList()
         val rangeLength = widgetData.rangeLength
 
+        val opts = parseOptionsString(widgetData.options)
+
         val dataHolders = statisticsMediator.getDataHolders(
             filterType = filterType,
             types = types,
         )
+
         val range = timeMapper.getRangeStartAndEnd(
             rangeLength = rangeLength,
             shift = 0,
@@ -155,6 +179,7 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             filteredIds = filteredIds,
             range = range,
         )
+
         var chart = statisticsChartViewDataInteractor.getChart(
             filterType = filterType,
             filteredIds = filteredIds,
@@ -166,19 +191,22 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
 
         for (i in chart.indices) {
             val el = chart.elementAt(i)
-            el.koef = try {
-                (el.name?.substringAfterLast(" ")?.toFloat() ?: 1.0).toFloat()
-            } catch (e: Exception) {
-                1.toFloat()
+            val koefOptionName = el.name + "_K"
+            if (opts.containsKey(koefOptionName)) {
+                el.koef = opts[koefOptionName] as Double
+            } else {
+                el.koef = 1.0
             }
-            el.value = (el.value.toFloat() * el.koef).toLong()
+            el.value = (el.value.toDouble() * el.koef).toLong()
         }
 
         var totalTracked = ""
-        var sum = 0F
+        var sum = 0.0
         var cnt = 0
         var minIndex = -1
         var minValue = 10000000000000
+        var maxIndex = -1
+        var maxValue = -10000000000000
         for (i in chart.indices) {
             val el = chart.elementAt(i)
             sum += el.value
@@ -187,45 +215,120 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                 minValue = el.value
                 minIndex = i
             }
+            if (el.value > maxValue) {
+                maxValue = el.value
+                maxIndex = i
+            }
         }
 
-        var el: PiePortion
-        var percent: Float
+        val isSmooth = opts.containsKey("smooth") && opts["smooth"] as Double > 0.0
+        var statisticsToday: List<Statistics> = listOf()
+        var sumToday = 0.0
+        var cntToday = 0
+        var minIndexToday = -1
+        var minValueToday = 10000000000000
+        var maxIndexToday = -1
+        var maxValueToday = -10000000000000
+        if (isSmooth) {
+            val rangeToday = timeMapper.getRangeStartAndEnd(
+                rangeLength = RangeLength.Day,
+                shift = 0,
+                firstDayOfWeek = firstDayOfWeek,
+                startOfDayShift = startOfDayShift,
+            )
+            statisticsToday = statisticsMediator.getStatistics(
+                filterType = filterType,
+                filteredIds = filteredIds,
+                range = rangeToday,
+            )
+            for ((i, item) in statisticsToday.withIndex()) {
+                sumToday += item.data.duration
+                cntToday++
+                if (item.data.duration < minValueToday) {
+                    minValueToday = item.data.duration
+                    minIndexToday = i
+                }
+                if (item.data.duration > maxValueToday) {
+                    maxValueToday = item.data.duration
+                    maxIndexToday = i
+                }
+            }
+        }
+
+        var percent: Double
         var timeStr: String
         if (cnt > 1) {
-            el = chart.elementAt(minIndex)
-            var expectedPercent = 100 / cnt.toFloat()
-            percent = el.value / sum * 100
-            var percentDiff = expectedPercent - percent
-            percentDiff = Math.round(percentDiff * 1000F) / 1000F
-            timeStr = timeMapper.formatInterval(
-                interval = (sum * percentDiff / 100 / el.koef).toLong() * cnt,
-                forceSeconds = showSeconds,
-                useProportionalMinutes = useProportionalMinutes,
-            )
-            totalTracked += "Need ${el.name}:\n$percentDiff%\n$timeStr\n\n"
+            val elMin = chart.elementAt(minIndex)
+            if (isSmooth) {
+                val smoothKoef = opts["smooth"] as Double
+                val elTodayMin = chart.find { el -> statisticsToday.find { it.id == el.statisticsId } == null }
+                if (elTodayMin != null) {
+                    totalTracked += "Need ${elTodayMin.name}\n\n"
+                } else {
+                    var minDurStatId = -1L
+                    var minDur = 100000000000000
+                    statisticsToday.forEach { item ->
+                        var dur = if (item.id != elMin.statisticsId) {
+                            (item.data.duration.toDouble() * smoothKoef).roundToLong()
+                        } else {
+                            item.data.duration
+                        }
+                        if (minDur > dur) {
+                            minDur = dur
+                            minDurStatId = item.id
+                        }
+                    }
+                    val minDurEl = chart.find { it.statisticsId == minDurStatId }
+                    totalTracked += "(${elMin.name}) Need ${minDurEl?.name?.uppercase(Locale.ROOT)}\n\n"
+                }
+            } else {
+                var expectedPercent = 100 / cnt.toFloat()
+                percent = elMin.value / sum * 100
+                var percentDiff = expectedPercent - percent
+                percentDiff = Math.round(percentDiff * 1000.0) / 1000.0
+                timeStr = timeMapper.formatInterval(
+                    interval = (sum * percentDiff / 100 / elMin.koef).toLong() * cnt,
+                    forceSeconds = showSeconds,
+                    useProportionalMinutes = useProportionalMinutes,
+                )
+                totalTracked += "Need ${elMin.name}:\n$percentDiff%\n$timeStr\n\n"
+            }
         }
 
         for (i in chart.indices) {
-            el = chart.elementAt(i)
+            val el = chart.elementAt(i)
+            val statItemToday = statisticsToday.filter { it.id == el.statisticsId }.firstOrNull()
             percent = el.value / sum * 100
-            percent = Math.round(percent * 1000F) / 1000F
+            percent = Math.round(percent * 1000.0) / 1000.0
             timeStr = timeMapper.formatInterval(
                 interval = (el.value.toFloat() / el.koef).toLong(),
                 forceSeconds = showSeconds,
                 useProportionalMinutes = useProportionalMinutes,
             )
-            if (el.koef != 1F) {
+            if (el.koef != 1.0) {
                 timeStr += " (" + timeMapper.formatInterval(
                     interval = el.value,
                     forceSeconds = showSeconds,
                     useProportionalMinutes = useProportionalMinutes,
                 ) + ")"
             }
+            if (isSmooth && statItemToday != null) {
+                    timeStr += " / " + timeMapper.formatInterval(
+                        interval = statItemToday.data.duration,
+                        forceSeconds = showSeconds,
+                        useProportionalMinutes = useProportionalMinutes,
+                    )
+            }
 
             totalTracked += "${el.name}:\n$timeStr"
             if (cnt > 1) {
                 totalTracked += "\n$percent%"
+                if (isSmooth) {
+                    val dur = statItemToday?.data?.duration ?: 0L
+                    percent = dur / sumToday * 100
+                    percent = (percent * 1000.0).roundToLong() / 1000.0
+                    totalTracked += " / $percent%"
+                }
             }
             totalTracked += "\n\n"
         }
@@ -233,6 +336,8 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         if (totalTracked.length >= 2) {
             totalTracked = totalTracked.substring(0, totalTracked.length - 2)
         }
+
+        totalTracked = widgetData.options + "\n\n" + totalTracked
 
         return WidgetStatisticsChartView(ContextThemeWrapper(context, R.style.AppTheme)).apply {
             setSegments(

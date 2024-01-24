@@ -18,12 +18,12 @@
         android:id="@+id/rvWidgetStatisticsFilterContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@id/tvWidgetStatisticsSettingsFilterTypeHint"
+        app:layout_constraintBottom_toTopOf="@id/tiWidgetStatisticsSettingsOptions"
         app:layout_constraintTop_toBottomOf="@id/tvWidgetStatisticsSettingsFilterHint"
         tools:listitem="@layout/item_record_type_layout" />
 
-    <androidx.appcompat.widget.AppCompatTextView
-        android:id="@+id/tvWidgetStatisticsSettingsFilterTypeHint"
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/tiWidgetStatisticsSettingsOptions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"

@@ -4,7 +4,10 @@ import android.app.Activity
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
 import com.example.util.simpletimetracker.core.base.BaseActivity
 import com.example.util.simpletimetracker.core.manager.ThemeManager
 import com.example.util.simpletimetracker.core.provider.ContextProvider
@@ -20,6 +23,7 @@ import com.google.android.flexbox.FlexWrap
 import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.flexbox.JustifyContent
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -78,6 +82,37 @@ class WidgetStatisticsSettingsActivity : BaseActivity() {
                 viewModel.onRangeSelected(it)
             }
             btnWidgetStatisticsSettingsRange.setOnClick { spinnerWidgetStatisticsSettingsRange.performClick() }
+            tiWidgetStatisticsSettingsOptions.addTextChangedListener(
+                object : TextWatcher {
+                    override fun beforeTextChanged(
+                        s: CharSequence,
+                        start: Int,
+                        count: Int,
+                        after: Int,
+                    ) {
+                        // This method is called to notify you that within 's', the 'count' characters
+                        // beginning at 'start' are about to be replaced with new text with length 'after'.
+                    }
+
+                    override fun onTextChanged(
+                        s: CharSequence,
+                        start: Int,
+                        before: Int,
+                        count: Int,
+                    ) {
+                        // This method is called to notify you that somewhere within 's', the text has been changed.
+                        // It is legitimate to make further changes to 's' from this callback but be careful as it will cause recursive calls.
+                    }
+
+                    override fun afterTextChanged(s: Editable) {
+                        // This method is called when the text has been changed. At this point,
+                        // the contents of 's' are final so it's safe to do things like updating
+                        // data models and other actions that depend on the updated content.
+                        val newText = s.toString() // Get current input as string
+                        viewModel.setOptions(newText)
+                    }
+                },
+            )
         }
 
         // ViewModel
@@ -85,7 +120,7 @@ class WidgetStatisticsSettingsActivity : BaseActivity() {
             val widgetId = intent?.extras
                 ?.getInt(
                     AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    AppWidgetManager.INVALID_APPWIDGET_ID
+                    AppWidgetManager.INVALID_APPWIDGET_ID,
                 )
                 ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
@@ -93,8 +128,18 @@ class WidgetStatisticsSettingsActivity : BaseActivity() {
             filterTypeViewData.observe(binding.buttonsWidgetStatisticsSettingsFilterType.adapter::replace)
             types.observe(recordTypesAdapter::replace)
             title.observe(binding.btnWidgetStatisticsSettingsRange::setText)
-            rangeItems.observe { binding.spinnerWidgetStatisticsSettingsRange.setData(it.items, it.selectedPosition) }
+            rangeItems.observe {
+                binding.spinnerWidgetStatisticsSettingsRange.setData(
+                    it.items,
+                    it.selectedPosition,
+                )
+            }
             handled.observe(::exit)
+        }
+
+        lifecycleScope.launch {
+            val options = viewModel.getOptions()
+            binding.tiWidgetStatisticsSettingsOptions.setText(options)
         }
     }
 

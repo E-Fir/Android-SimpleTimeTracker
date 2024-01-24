@@ -86,6 +86,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                     colorInt = colorMapper.toUntrackedColor(isDarkTheme),
                     iconId = RecordTypeIcon.Image(R.drawable.unknown),
                     name = dataHolder?.name ?: "noname",
+                    statisticsId = statistics.id,
                 )
             }
             statistics.id == UNCATEGORIZED_ITEM_ID -> {
@@ -94,6 +95,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                     colorInt = colorMapper.toUntrackedColor(isDarkTheme),
                     iconId = RecordTypeIcon.Image(R.drawable.untagged),
                     name = dataHolder?.name ?: "noname",
+                    statisticsId = statistics.id,
                 )
             }
             dataHolder != null -> {
@@ -104,6 +106,7 @@ class StatisticsChartViewDataInteractor @Inject constructor(
                     iconId = dataHolder.icon
                         ?.let(iconMapper::mapIcon),
                     name = dataHolder?.name ?: "noname",
+                    statisticsId = statistics.id,
                 )
             }
             else -> {

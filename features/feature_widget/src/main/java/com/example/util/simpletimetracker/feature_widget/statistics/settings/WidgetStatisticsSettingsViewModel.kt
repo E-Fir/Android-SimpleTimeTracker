@@ -322,4 +322,13 @@ class WidgetStatisticsSettingsViewModel @Inject constructor(
     private fun loadRanges(): RangesViewData {
         return rangeViewDataMapper.mapToRanges(widgetData.rangeLength, addSelection = false)
     }
+
+    fun setOptions(newOptions: String) {
+        widgetData.options = newOptions
+    }
+
+    suspend fun getOptions(): String {
+        initializeWidgetData()
+        return widgetData.options
+    }
 }

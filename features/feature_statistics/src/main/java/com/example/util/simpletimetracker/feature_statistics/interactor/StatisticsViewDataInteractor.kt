@@ -59,11 +59,13 @@ class StatisticsViewDataInteractor @Inject constructor(
                         .let(::listOf)
                         .let(RecordsFilter::Category)
                 }
+
                 ChartFilterType.RECORD_TAG -> {
                     return RecordsFilter.TagItem.Untagged
                         .let(::listOf)
                         .let(RecordsFilter::SelectedTags)
                 }
+
                 ChartFilterType.ACTIVITY -> {
                     // Shouldn't happen normally.
                 }
@@ -75,10 +77,12 @@ class StatisticsViewDataInteractor @Inject constructor(
                 listOf(selectedId)
                     .let(RecordsFilter::Activity)
             }
+
             ChartFilterType.CATEGORY -> {
                 listOf(selectedId).map(RecordsFilter.CategoryItem::Categorized)
                     .let(RecordsFilter::Category)
             }
+
             ChartFilterType.RECORD_TAG -> {
                 listOf(selectedId).map(RecordsFilter.TagItem::Tagged)
                     .let(RecordsFilter::SelectedTags)
@@ -137,7 +141,8 @@ class StatisticsViewDataInteractor @Inject constructor(
                 ?: PiePortion(
                     value = 0,
                     colorInt = colorMapper.toUntrackedColor(isDarkTheme),
-                    name = ""
+                    name = "",
+                    statisticsId = 0,
                 ).let(::listOf)
 
             StatisticsChartViewData(

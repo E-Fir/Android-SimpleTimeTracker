@@ -412,6 +412,7 @@ class PieChartView @JvmOverloads constructor(
                         colorInt = Color.BLACK,
                         iconId = RecordTypeIcon.Image(R.drawable.unknown),
                         name = "",
+                        statisticsId = -1
                     )
                 }.let {
                     setSegments(
