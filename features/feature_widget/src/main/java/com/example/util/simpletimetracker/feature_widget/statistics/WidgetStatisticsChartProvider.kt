@@ -28,6 +28,7 @@ import com.example.util.simpletimetracker.feature_views.extension.dpToPx
 import com.example.util.simpletimetracker.feature_views.extension.getBitmapFromView
 import com.example.util.simpletimetracker.feature_views.extension.measureExactly
 import com.example.util.simpletimetracker.feature_views.extension.pxToDp
+import com.example.util.simpletimetracker.feature_views.pieChart.PiePortion
 import com.example.util.simpletimetracker.feature_views.viewData.RecordTypeIcon
 import com.example.util.simpletimetracker.feature_widget.R
 import com.example.util.simpletimetracker.feature_widget.statistics.customView.WidgetStatisticsChartView
@@ -188,17 +189,22 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             }
         }
 
-        var el = chart.elementAt(minIndex)
-        var expectedPercent = 100 / cnt.toFloat()
-        var percent = el.value / sum * 100
-        var percentDiff = expectedPercent - percent
-        percentDiff = Math.round(percentDiff * 1000F) / 1000F
-        var timeStr: String = timeMapper.formatInterval(
-            interval = (sum * percentDiff / 100).toLong() * cnt,
-            forceSeconds = showSeconds,
-            useProportionalMinutes = useProportionalMinutes,
-        )
-        totalTracked += "Need ${el.name}:\n$percentDiff%\n$timeStr\n\n"
+        var el: PiePortion
+        var percent: Float
+        var timeStr: String
+        if (cnt > 1) {
+            el = chart.elementAt(minIndex)
+            var expectedPercent = 100 / cnt.toFloat()
+            percent = el.value / sum * 100
+            var percentDiff = expectedPercent - percent
+            percentDiff = Math.round(percentDiff * 1000F) / 1000F
+            timeStr = timeMapper.formatInterval(
+                interval = (sum * percentDiff / 100 / el.koef).toLong() * cnt,
+                forceSeconds = showSeconds,
+                useProportionalMinutes = useProportionalMinutes,
+            )
+            totalTracked += "Need ${el.name}:\n$percentDiff%\n$timeStr\n\n"
+        }
 
         for (i in chart.indices) {
             el = chart.elementAt(i)
@@ -217,7 +223,15 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                 ) + ")"
             }
 
-            totalTracked += "${el.name}:\n$timeStr\n$percent%\n\n"
+            totalTracked += "${el.name}:\n$timeStr"
+            if (cnt > 1) {
+                totalTracked += "\n$percent%"
+            }
+            totalTracked += "\n\n"
+        }
+
+        if (totalTracked.length >= 2) {
+            totalTracked = totalTracked.substring(0, totalTracked.length - 2)
         }
 
         return WidgetStatisticsChartView(ContextThemeWrapper(context, R.style.AppTheme)).apply {
