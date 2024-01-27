@@ -394,10 +394,11 @@ class ChangeRecordTypeViewModel @Inject constructor(
     }
 
     private suspend fun saveRecordType(): Long {
+        val icon = newIconName.ifEmpty { newName }
         val recordType = RecordType(
             id = recordTypeId,
             name = newName,
-            icon = newIconName,
+            icon = icon,
             color = newColor,
         )
 
@@ -439,9 +440,11 @@ class ChangeRecordTypeViewModel @Inject constructor(
     private suspend fun loadRecordPreviewViewData(): RecordTypeViewData {
         val isDarkTheme = prefsInteractor.getDarkMode()
 
+        val icon = newIconName.ifEmpty { newName }
+
         return RecordType(
             name = newName,
-            icon = newIconName,
+            icon = icon,
             color = newColor,
         ).let { recordTypeViewDataMapper.map(it, isDarkTheme) }
     }
