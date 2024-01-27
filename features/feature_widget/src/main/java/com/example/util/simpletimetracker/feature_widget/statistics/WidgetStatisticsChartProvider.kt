@@ -242,15 +242,17 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                 range = rangeToday,
             )
             for ((i, item) in statisticsToday.withIndex()) {
-                sumToday += item.data.duration
-                cntToday++
-                if (item.data.duration < minValueToday) {
-                    minValueToday = item.data.duration
-                    minIndexToday = i
-                }
-                if (item.data.duration > maxValueToday) {
-                    maxValueToday = item.data.duration
-                    maxIndexToday = i
+                if (chart.find { it.statisticsId == item.id } != null) {
+                    sumToday += item.data.duration
+                    cntToday++
+                    if (item.data.duration < minValueToday) {
+                        minValueToday = item.data.duration
+                        minIndexToday = i
+                    }
+                    if (item.data.duration > maxValueToday) {
+                        maxValueToday = item.data.duration
+                        maxIndexToday = i
+                    }
                 }
             }
         }
@@ -261,21 +263,24 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             val elMin = chart.elementAt(minIndex)
             if (isSmooth) {
                 val smoothKoef = opts["smooth"] as Double
-                val elTodayMin = chart.find { el -> statisticsToday.find { it.id == el.statisticsId } == null }
+                val elTodayMin =
+                    chart.find { el -> statisticsToday.find { it.id == el.statisticsId } == null }
                 if (elTodayMin != null) {
                     totalTracked += "Need ${elTodayMin.name}\n\n"
                 } else {
                     var minDurStatId = -1L
                     var minDur = 100000000000000
                     statisticsToday.forEach { item ->
-                        var dur = if (item.id != elMin.statisticsId) {
-                            (item.data.duration.toDouble() * smoothKoef).roundToLong()
-                        } else {
-                            item.data.duration
-                        }
-                        if (minDur > dur) {
-                            minDur = dur
-                            minDurStatId = item.id
+                        if (chart.find { it.statisticsId == item.id } != null) {
+                            var dur = if (item.id != elMin.statisticsId) {
+                                (item.data.duration.toDouble() * smoothKoef).roundToLong()
+                            } else {
+                                item.data.duration
+                            }
+                            if (minDur > dur) {
+                                minDur = dur
+                                minDurStatId = item.id
+                            }
                         }
                     }
                     val minDurEl = chart.find { it.statisticsId == minDurStatId }
@@ -312,21 +317,29 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                     useProportionalMinutes = useProportionalMinutes,
                 ) + ")"
             }
-            if (isSmooth && statItemToday != null) {
+            if (isSmooth) {
+                if (statItemToday != null) {
                     timeStr += " / " + timeMapper.formatInterval(
                         interval = statItemToday.data.duration,
                         forceSeconds = showSeconds,
                         useProportionalMinutes = useProportionalMinutes,
                     )
+                } else {
+                    timeStr += " / 0м"
+                }
             }
 
             totalTracked += "${el.name}:\n$timeStr"
             if (cnt > 1) {
                 totalTracked += "\n$percent%"
                 if (isSmooth) {
-                    val dur = statItemToday?.data?.duration ?: 0L
-                    percent = dur / sumToday * 100
-                    percent = (percent * 1000.0).roundToLong() / 1000.0
+                    if (sumToday > 0) {
+                        val dur = statItemToday?.data?.duration ?: 0L
+                        percent = dur / sumToday * 100
+                        percent = (percent * 1000.0).roundToLong() / 1000.0
+                    } else {
+                        percent = 0.0
+                    }
                     totalTracked += " / $percent%"
                 }
             }
@@ -337,7 +350,9 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             totalTracked = totalTracked.substring(0, totalTracked.length - 2)
         }
 
-        totalTracked = widgetData.options + "\n\n" + totalTracked
+        if (widgetData.options.isNotEmpty()) {
+            totalTracked = widgetData.options + "\n\n" + totalTracked
+        }
 
         return WidgetStatisticsChartView(ContextThemeWrapper(context, R.style.AppTheme)).apply {
             setSegments(
