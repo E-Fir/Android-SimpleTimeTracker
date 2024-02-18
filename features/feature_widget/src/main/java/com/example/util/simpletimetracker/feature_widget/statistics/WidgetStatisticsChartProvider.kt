@@ -6,11 +6,13 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.RemoteViews
+import androidx.annotation.RequiresApi
 import com.example.util.simpletimetracker.core.interactor.StatisticsChartViewDataInteractor
 import com.example.util.simpletimetracker.core.interactor.StatisticsMediator
 import com.example.util.simpletimetracker.core.mapper.TimeMapper
@@ -30,7 +32,6 @@ import com.example.util.simpletimetracker.feature_views.extension.dpToPx
 import com.example.util.simpletimetracker.feature_views.extension.getBitmapFromView
 import com.example.util.simpletimetracker.feature_views.extension.measureExactly
 import com.example.util.simpletimetracker.feature_views.extension.pxToDp
-import com.example.util.simpletimetracker.feature_views.pieChart.PiePortion
 import com.example.util.simpletimetracker.feature_views.viewData.RecordTypeIcon
 import com.example.util.simpletimetracker.feature_widget.R
 import com.example.util.simpletimetracker.feature_widget.statistics.customView.WidgetStatisticsChartView
@@ -39,8 +40,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.ceil
 import kotlin.math.roundToLong
 
 @AndroidEntryPoint
@@ -96,6 +99,7 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         updateAppWidget(context, appWidgetManager, appWidgetId)
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun updateAppWidget(
         context: Context?,
         appWidgetManager: AppWidgetManager?,
@@ -131,7 +135,25 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         for (pair in keyValuePairs) {
             val parts = pair.split("=")
             if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
-                opts[parts[0]] = parts[1].toDouble()
+                var value: Double
+                if (parts[1].matches(Regex("(\\d+h)?(\\d+m)?")) && parts[1].matches(Regex(".*?[hm]"))) {
+                    val (hours, minutes) = parts[1].split("h", "m")
+                    value = 0.0
+                    if (hours.isNotEmpty()) {
+                        if ('h' !in parts[1]) {
+                            value += hours.toDouble() / 60.0
+                        } else {
+                            value += hours.toDouble()
+                        }
+                    }
+                    if (minutes.isNotEmpty()) {
+                        value += minutes.toDouble() / 60.0
+                    }
+                } else {
+                    value = parts[1].toDouble()
+                }
+
+                opts[parts[0]] = value
             } else {
                 opts[parts[0]] = 0.0
             }
@@ -140,6 +162,7 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         return opts
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private suspend fun prepareView(
         context: Context,
         appWidgetId: Int,
@@ -152,6 +175,14 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         val widgetData = prefsInteractor.getStatisticsWidget(appWidgetId)
         val backgroundTransparency = prefsInteractor.getWidgetBackgroundTransparencyPercent()
         val types = recordTypeInteractor.getAll().associateBy(RecordType::id)
+
+        fun formatHours(hours: Double): String {
+            return timeMapper.formatInterval(
+                interval = (hours * 1000.0 * 60.0 * 60.0).toLong(),
+                forceSeconds = showSeconds,
+                useProportionalMinutes = useProportionalMinutes,
+            )
+        }
 
         val filterType = widgetData.chartFilterType
         val filteredIds = when (filterType) {
@@ -221,6 +252,10 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
             }
         }
 
+        val STYLE_DEFAULT = 0
+        val STYLE_SHORT = 1
+        val style = if (opts.containsKey("style")) (opts["style"] as Double).toInt() else STYLE_DEFAULT
+
         val isSmooth = opts.containsKey("smooth") && opts["smooth"] as Double > 0.0
         var statisticsToday: List<Statistics> = listOf()
         var sumToday = 0.0
@@ -266,7 +301,11 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                 val elTodayMin =
                     chart.find { el -> statisticsToday.find { it.id == el.statisticsId } == null }
                 if (elTodayMin != null) {
-                    totalTracked += "Need ${elTodayMin.name}\n\n"
+                    totalTracked += if (style == STYLE_SHORT) {
+                        elTodayMin.name
+                    } else {
+                        "Need ${elTodayMin.name}\n\n"
+                    }
                 } else {
                     var minDurStatId = -1L
                     var minDur = 100000000000000
@@ -284,7 +323,11 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                         }
                     }
                     val minDurEl = chart.find { it.statisticsId == minDurStatId }
-                    totalTracked += "(${elMin.name}) Need ${minDurEl?.name?.uppercase(Locale.ROOT)}\n\n"
+                    totalTracked += if (style == STYLE_SHORT) {
+                        elMin.name
+                    } else {
+                        "(${elMin.name}) Need ${minDurEl?.name?.uppercase(Locale.ROOT)}\n\n"
+                    }
                 }
             } else {
                 var expectedPercent = 100 / cnt.toFloat()
@@ -296,62 +339,107 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                     forceSeconds = showSeconds,
                     useProportionalMinutes = useProportionalMinutes,
                 )
-                totalTracked += "Need ${elMin.name}:\n$percentDiff%\n$timeStr\n\n"
+                totalTracked += if (style == STYLE_SHORT) {
+                    elMin.name
+                } else {
+                    "Need ${elMin.name}:\n$percentDiff%\n$timeStr\n\n"
+                }
             }
         }
 
-        for (i in chart.indices) {
-            val el = chart.elementAt(i)
-            val statItemToday = statisticsToday.filter { it.id == el.statisticsId }.firstOrNull()
-            percent = el.value / sum * 100
-            percent = Math.round(percent * 1000.0) / 1000.0
-            timeStr = timeMapper.formatInterval(
-                interval = (el.value.toFloat() / el.koef).toLong(),
-                forceSeconds = showSeconds,
-                useProportionalMinutes = useProportionalMinutes,
-            )
-            if (el.koef != 1.0) {
-                timeStr += " (" + timeMapper.formatInterval(
-                    interval = el.value,
+        if (style != STYLE_SHORT) {
+            for (i in chart.indices) {
+                val el = chart.elementAt(i)
+                val statItemToday =
+                    statisticsToday.filter { it.id == el.statisticsId }.firstOrNull()
+                percent = el.value / sum * 100
+                percent = Math.round(percent * 1000.0) / 1000.0
+                timeStr = timeMapper.formatInterval(
+                    interval = (el.value.toFloat() / el.koef).toLong(),
                     forceSeconds = showSeconds,
                     useProportionalMinutes = useProportionalMinutes,
-                ) + ")"
-            }
-            if (isSmooth) {
-                if (statItemToday != null) {
-                    timeStr += " / " + timeMapper.formatInterval(
-                        interval = statItemToday.data.duration,
+                )
+                if (el.koef != 1.0) {
+                    timeStr += " (" + timeMapper.formatInterval(
+                        interval = el.value,
                         forceSeconds = showSeconds,
                         useProportionalMinutes = useProportionalMinutes,
-                    )
-                } else {
-                    timeStr += " / 0м"
+                    ) + ")"
                 }
-            }
-
-            totalTracked += "${el.name}:\n$timeStr"
-            if (cnt > 1) {
-                totalTracked += "\n$percent%"
                 if (isSmooth) {
-                    if (sumToday > 0) {
-                        val dur = statItemToday?.data?.duration ?: 0L
-                        percent = dur / sumToday * 100
-                        percent = (percent * 1000.0).roundToLong() / 1000.0
+                    if (statItemToday != null) {
+                        timeStr += " / " + timeMapper.formatInterval(
+                            interval = statItemToday.data.duration,
+                            forceSeconds = showSeconds,
+                            useProportionalMinutes = useProportionalMinutes,
+                        )
                     } else {
-                        percent = 0.0
+                        timeStr += " / 0м"
                     }
-                    totalTracked += " / $percent%"
+                }
+
+                totalTracked += "${el.name}:\n$timeStr"
+                if (cnt > 1) {
+                    totalTracked += "\n$percent%"
+                    if (isSmooth) {
+                        if (sumToday > 0) {
+                            val dur = statItemToday?.data?.duration ?: 0L
+                            percent = dur / sumToday * 100
+                            percent = (percent * 1000.0).roundToLong() / 1000.0
+                        } else {
+                            percent = 0.0
+                        }
+                        totalTracked += " / $percent%"
+                    }
+                }
+                totalTracked += "\n\n"
+            }
+
+            if (totalTracked.length >= 2) {
+                totalTracked = totalTracked.substring(0, totalTracked.length - 2)
+            }
+
+            if (widgetData.options.isNotEmpty()) {
+                totalTracked = widgetData.options + "\n\n" + totalTracked
+
+                if (chart.size == 1 && opts.containsKey("goal")) {
+                    val goal = opts["goal"] as Double
+                    if (opts.containsKey("magnet")) {
+                        val magnetHour = opts["magnet"] as Double
+                        val activeSessionLen = if (opts.containsKey("session_len")) {
+                            opts["session_len"] as Double
+                        } else {
+                            0.75
+                        }
+
+                        val el = chart.elementAt(0)
+
+                        val activeHoursSpent = el.value.toDouble() / 1000.0 / 60.0 / 60.0
+                        if (activeHoursSpent < goal) {
+                            val waitForHours = magnetHour - goal + activeHoursSpent
+                            val currentTime = LocalTime.now()
+                            val currentHours = currentTime.hour + currentTime.minute / 60.0
+
+                            if (currentHours < waitForHours) {
+                                totalTracked += "\n\nWait for: " + formatHours(waitForHours)
+                                val activeHoursLeft = goal - activeHoursSpent
+                                val activeSessionsLeft = activeHoursLeft / activeSessionLen
+                                val hoursToMagnet = magnetHour - currentHours
+                                val relaxSessionLen: Double
+                                if (activeSessionsLeft <= 1.0) {
+                                    relaxSessionLen = hoursToMagnet - activeHoursLeft
+                                } else {
+                                    val relaxHoursLeft = waitForHours - currentHours
+                                    relaxSessionLen = relaxHoursLeft / ceil(activeSessionsLeft)
+                                }
+                                totalTracked += "\nRelax: " + formatHours(relaxSessionLen) + " / " + formatHours(
+                                    activeSessionLen,
+                                )
+                            }
+                        }
+                    }
                 }
             }
-            totalTracked += "\n\n"
-        }
-
-        if (totalTracked.length >= 2) {
-            totalTracked = totalTracked.substring(0, totalTracked.length - 2)
-        }
-
-        if (widgetData.options.isNotEmpty()) {
-            totalTracked = widgetData.options + "\n\n" + totalTracked
         }
 
         return WidgetStatisticsChartView(ContextThemeWrapper(context, R.style.AppTheme)).apply {
