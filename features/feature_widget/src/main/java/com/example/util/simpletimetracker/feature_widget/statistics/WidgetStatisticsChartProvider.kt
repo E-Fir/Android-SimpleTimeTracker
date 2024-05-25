@@ -238,8 +238,10 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
         var minValue = 10000000000000
         var maxIndex = -1
         var maxValue = -10000000000000
+        var values = longArrayOf()
         for (i in chart.indices) {
             val el = chart.elementAt(i)
+            values += el.value
             sum += el.value
             cnt++
             if (el.value < minValue) {
@@ -251,9 +253,11 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                 maxIndex = i
             }
         }
+        values.sort()
 
         val STYLE_DEFAULT = 0
         val STYLE_SHORT = 1
+        val STYLE_SHORT_WITH_TIME = 2
         val style = if (opts.containsKey("style")) (opts["style"] as Double).toInt() else STYLE_DEFAULT
 
         val isSmooth = opts.containsKey("smooth") && opts["smooth"] as Double > 0.0
@@ -324,7 +328,7 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                     }
                     val minDurEl = chart.find { it.statisticsId == minDurStatId }
                     totalTracked += if (style == STYLE_SHORT) {
-                        elMin.name
+                        minDurEl?.name?.uppercase(Locale.ROOT)
                     } else {
                         "(${elMin.name}) Need ${minDurEl?.name?.uppercase(Locale.ROOT)}\n\n"
                     }
@@ -334,20 +338,24 @@ class WidgetStatisticsChartProvider : AppWidgetProvider() {
                 percent = elMin.value / sum * 100
                 var percentDiff = expectedPercent - percent
                 percentDiff = Math.round(percentDiff * 1000.0) / 1000.0
+
                 timeStr = timeMapper.formatInterval(
-                    interval = (sum * percentDiff / 100 / elMin.koef).toLong() * cnt,
+                    interval = ((values[1] - values[0]) / elMin.koef).toLong(),
                     forceSeconds = showSeconds,
                     useProportionalMinutes = useProportionalMinutes,
                 )
+
                 totalTracked += if (style == STYLE_SHORT) {
                     elMin.name
+                } else if (style == STYLE_SHORT_WITH_TIME) {
+                    "${elMin.name}:\n$timeStr"
                 } else {
                     "Need ${elMin.name}:\n$percentDiff%\n$timeStr\n\n"
                 }
             }
         }
 
-        if (style != STYLE_SHORT) {
+        if (style != STYLE_SHORT && style != STYLE_SHORT_WITH_TIME) {
             for (i in chart.indices) {
                 val el = chart.elementAt(i)
                 val statItemToday =
